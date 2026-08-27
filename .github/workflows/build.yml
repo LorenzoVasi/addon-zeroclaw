@@ -7,9 +7,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-env:
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
-
 jobs:
   boot-test:
     # Single-arch (amd64, the runner's native arch — no QEMU emulation, so
@@ -69,6 +66,15 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+
+      # `github.repository` preserves case (`LorenzoVasi/addon-zeroclaw`),
+      # but Docker/GHCR image references must be all-lowercase — GitHub
+      # Actions expressions have no built-in lower() function, so this has
+      # to be a shell step, not an `env:` expression (confirmed the hard
+      # way: `docker buildx build` failing with "repository name must be
+      # lowercase" on the first real push to this repo).
+      - name: Compute lowercase image name
+        run: echo "IMAGE_NAME=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

@@ -894,5 +894,23 @@ recording since both were genuine findings, not CI flakiness:
   clean locally (`pip install yamllint && python -m yamllint .`) before
   pushing the fix, not just assumed from reading the rule.
 
-Both `boot-test` (the new smoke-test job, see the entry above) and the
-multi-arch `build` job passed on the follow-up push.
+`boot-test` (the new smoke-test job, see the entry above) passed on the
+follow-up push. `build` did not — a third, separate issue, documented in
+its own entry immediately below.
+
+## GHCR image tags must be lowercase; `github.repository` isn't
+
+Follow-up to the entry above: the `build` job's "Build and push" step
+failed with `ERROR: failed to build: invalid tag "ghcr.io/LorenzoVasi/
+addon-zeroclaw:latest": repository name must be lowercase`. `github.
+repository` (used to build `IMAGE_NAME`) preserves the GitHub username's
+actual case (`LorenzoVasi`), but Docker/OCI registry references must be
+all-lowercase — a real constraint, not a GHCR quirk. GitHub Actions'
+expression syntax (the `${{ }}` used in the workflow's `env:` block) has
+no built-in string-lowercasing function, so this can't be fixed by
+tweaking the expression — moved the computation into an actual shell step
+(`tr '[:upper:]' '[:lower:]'`) that writes `IMAGE_NAME` to `$GITHUB_ENV`
+instead of a workflow-level `env:` expression. Confirmed the fix the same
+way as the line-length one above: not just reasoned through, but pushed
+and watched the `build` job's own `Compute lowercase image name` step run
+and the subsequent push succeed.
