@@ -28,11 +28,9 @@ mkdir -p "${DATA_DIR}"
 export HOME="${DATA_DIR}"
 export ZEROCLAW_DATA_DIR="${DATA_DIR}/data"
 
-first_boot=0
 if [ ! -f "${CONFIG_FILE}" ]; then
     echo "[zeroclaw-addon] No existing config at ${CONFIG_FILE}; seeding ZeroClaw's default config."
     cp -r "${SEED_DIR}/.zeroclaw" "${DATA_DIR}/"
-    first_boot=1
     # The baked-in seed's schema version has, in practice, always been
     # current for the pinned image tag, but `config migrate` is a cheap
     # no-op when it already is — cheaper than assuming and finding out

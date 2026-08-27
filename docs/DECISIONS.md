@@ -863,3 +863,36 @@ on disk), confirmed all six `cron_*` names plus `http_request` landed in
 `home_assistant__*` entries, and confirmed a second boot re-seeded neither
 section (exactly one `[http_request]` header, no duplicate reconciliation
 log lines) — idempotent, not just correct once.
+
+## Pushed to GitHub; CI's first real run caught two real issues
+
+2026-08-27: repo pushed public to `github.com/LorenzoVasi/addon-zeroclaw`
+(branch renamed `master` → `main` first, to match what `build.yml`/
+`lint.yml` already trigger on). `REPLACE_WITH_GH_OWNER`/
+`REPLACE_WITH_MAINTAINER_NAME` filled in across `repository.yaml`/
+`README.md`/`DOCS.md`. First CI run on `main` failed both jobs — worth
+recording since both were genuine findings, not CI flakiness:
+
+- **shellcheck (SC2034)**: `first_boot` in `run.sh` was assigned (`0`, then
+  `1` inside the seed branch) but never actually read anywhere — dead code
+  left over from when MCP/provider seeding used to be gated on it, before
+  both switched to marker-existence/reconcile-every-boot checks (see
+  earlier entries). Removed outright; nothing referenced it.
+- **yamllint**: `config.yaml`'s `provider_type` enum line (116 chars) and
+  a shell-script line inside `build.yml`'s new `boot-test` job (104 chars)
+  both exceeded yamllint's default 80-char line-length limit. Rather than
+  manually wrapping either — the TOML-schema enum string can't be split
+  without YAML-escaping tricks that would make it harder to read, and
+  shell-script lines inside `run:` blocks will always occasionally run
+  long — added `.yamllint` at the repo root raising the limit to 130 and
+  disabling `document-start` (this repo's workflow files don't use a
+  leading `---`, deliberately, matching common GitHub Actions convention)
+  and `truthy` (a well-known yamllint false positive on GitHub Actions'
+  own `on:` trigger key — YAML 1.1 treats bare `on` as a boolean, GitHub
+  Actions treats it as a literal key name; every workflow file in this
+  repo trips it for a reason that isn't actually a problem). Verified
+  clean locally (`pip install yamllint && python -m yamllint .`) before
+  pushing the fix, not just assumed from reading the rule.
+
+Both `boot-test` (the new smoke-test job, see the entry above) and the
+multi-arch `build` job passed on the follow-up push.

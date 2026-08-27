@@ -1,0 +1,18 @@
+---
+extends: default
+
+rules:
+  # HA add-on config.yaml schema lines (enum lists) and workflow shell
+  # script lines routinely exceed the default 80-char limit without being
+  # any less readable — 80 is a stricter default than this repo's actual
+  # content warrants.
+  line-length:
+    max: 130
+  # GitHub Actions workflow files are conventionally written without a
+  # leading `---` document marker; not worth fighting that convention.
+  document-start: disable
+  # GitHub Actions' `on:` trigger key is a well-known false positive for
+  # yamllint's truthy check (YAML 1.1 treats bare `on`/`off` as booleans;
+  # GitHub Actions treats `on:` as a literal key name) — every workflow
+  # file in this repo trips it for a reason that isn't actually a problem.
+  truthy: disable
