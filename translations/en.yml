@@ -1,0 +1,60 @@
+---
+configuration:
+  log_level:
+    name: Log level
+    description: >-
+      Verbosity of ZeroClaw's own logs (visible in the add-on's Log tab).
+  api_token:
+    name: API token
+    description: >-
+      Shared bearer token for ZeroClaw's gateway (protects /webhook and the
+      REST API via ZeroClaw's pairing mechanism). Set this to a random
+      string and use the same value when configuring the
+      zeroclaw_conversation Home Assistant integration — it's how Assist's
+      conversation agent authenticates its calls into ZeroClaw. Leave empty
+      only for a quick local test; the gateway is unauthenticated without it.
+  home_assistant_url:
+    name: Home Assistant URL
+    description: >-
+      Base URL ZeroClaw should use to reach Home Assistant's MCP Server
+      integration. The default (http://homeassistant:8123) works for most
+      installs via the Supervisor's internal DNS; only change this for a
+      non-standard network setup.
+  home_assistant_token:
+    name: Home Assistant long-lived access token
+    description: >-
+      Optional. A long-lived access token (create one from your Home
+      Assistant profile page) used once, on first boot, to seed a
+      "home_assistant" MCP server entry inside ZeroClaw so it can control
+      Home Assistant. Leave empty to skip this and configure MCP by hand
+      later from the ZeroClaw dashboard.
+  providers:
+    name: Model providers
+    description: >-
+      Pre-configure one or more LLM providers here instead of (or in
+      addition to) ZeroClaw's own dashboard. Seeded into ZeroClaw before
+      it starts, every boot — add an entry and restart to pick it up. The
+      zeroclaw_conversation Home Assistant integration's "create a new
+      agent" flow picks from these when creating an agent.
+    provider_type:
+      name: Provider type
+    alias:
+      name: Alias
+      description: >-
+        A short name for this credential set (e.g. "household"). Must be
+        unique per provider type — used as part of ZeroClaw's internal
+        reference to this provider.
+    api_key:
+      name: API key
+    model:
+      name: Default model
+      description: >-
+        Optional. The specific model ID this provider alias should use
+        (e.g. "claude-haiku-4-5"). Leave empty to use the provider's own
+        default.
+    uri:
+      name: Custom endpoint URI
+      description: >-
+        Optional. Only needed for a self-hosted or non-standard endpoint
+        (e.g. Ollama, a custom OpenAI-compatible gateway). Leave empty for
+        the provider's standard endpoint.

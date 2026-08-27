@@ -1,0 +1,39 @@
+---
+name: ZeroClaw
+version: "0.1.0"
+slug: zeroclaw
+description: >-
+  Self-hosted autonomous AI agent (ZeroClaw), pre-wired to control Home
+  Assistant via the MCP Server integration and to power the Assist
+  conversation agent (with the companion zeroclaw_conversation integration).
+url: https://github.com/zeroclaw-labs/zeroclaw
+arch:
+  - aarch64
+  - amd64
+init: true
+startup: application
+boot: auto
+ingress: true
+ingress_port: 42617
+ingress_stream: true
+panel_icon: mdi:robot-outline
+panel_title: ZeroClaw
+homeassistant_api: false
+hassio_api: false
+options:
+  log_level: info
+  api_token: ""
+  home_assistant_url: "http://homeassistant:8123"
+  home_assistant_token: ""
+  providers: []
+schema:
+  log_level: list(trace|debug|info|warn|error)
+  api_token: password?
+  home_assistant_url: url?
+  home_assistant_token: password?
+  providers:
+    - provider_type: list(anthropic|openai|openrouter|gemini|azure|ollama|groq|mistral|xai|deepseek|together|custom)
+      alias: str
+      api_key: password?
+      model: str?
+      uri: str?
