@@ -86,10 +86,22 @@ if [ ! -f "${CONFIG_FILE}" ]; then
     #     for a duplicate prompt within the TTL window — a natural pairing
     #     with `live_pricing` below, given the cost-visibility work this
     #     session.
+    #   - auto_save (default `true`, the one field here actually turned
+    #     *off*): auto-saves every message the household sends as raw
+    #     conversation history, regardless of content — "turn off the
+    #     kitchen light" ends up saved right alongside anything actually
+    #     worth remembering. User request: memory should hold durable
+    #     household facts (entity locations, preferences, "remember that
+    #     X is here"), not a transcript of every command. Turning this off
+    #     leaves the *other* path intact — the agent's own `memory_store`
+    #     tool calls, guided by SOUL.md, which is where durable facts
+    #     should come from instead (see the companion
+    #     ha-zeroclaw-conversation repo's SOUL.md update, same session).
     for kv in \
         "memory.snapshot_enabled true" \
         "memory.snapshot_on_hygiene true" \
         "memory.dedup_on_write true" \
+        "memory.auto_save false" \
         "memory.policy.redact_on_write true" \
         "memory.response_cache_enabled true"; do
         # shellcheck disable=SC2086 # intentional word-split: "<path> <value>"

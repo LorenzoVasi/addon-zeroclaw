@@ -1077,3 +1077,34 @@ configured, confirmed the log shows `memory.snapshot_enabled updated.` /
 updated.` (all five, no errors after the path fix), confirmed the actual
 written `config.toml` has `[memory]` and `[memory.policy]` holding the
 right values, and the daemon booted healthy (`GET /health` succeeded).
+
+## `memory.auto_save = false`: stop logging every message as memory
+
+User request (2026-08-28): "ZeroClaw mi sta salvando in memoria tutte le
+chat. Voglio che siano salvate in memoria solamente quei elementi che
+spiegano la casa e altre informazioni, non che ho settato o cambiato un
+certo valore" — memory should hold durable household facts (entity
+locations, preferences, "remember that X is here"), not a running
+transcript of every command ("turned off the kitchen light" showing up
+in memory right alongside anything actually worth keeping).
+
+Root cause was a structural config flag, not an agent judgment problem:
+`memory.auto_save` (`MemoryConfig`, default `true`) "auto-saves what
+*you* tell ZeroClaw into memory as conversation history" — every
+household message, unconditionally, regardless of content. This runs
+independent of, and in addition to, the agent's own deliberate
+`memory_store` tool calls (the ones SOUL.md's home-helper addition
+already guides — see the companion `ha-zeroclaw-conversation` repo,
+same session, which also sharpened that instruction to be explicit about
+durable-facts-only). Turning `auto_save` off doesn't touch that second
+path at all; it only stops the blanket transcript-logging.
+
+Added to the same first-boot-only memory-defaults block as the five
+fields above (same reasoning: a starting preference the household can
+freely revisit later, not something reasserted every boot) — the one
+field in that block actually flipped to `false` rather than `true`.
+
+Verified against a real built container: log shows `memory.auto_save
+updated.` alongside the other five, the written `config.toml`'s
+`[memory]` section has `auto_save = false`, and the daemon boots
+healthy.
