@@ -914,3 +914,17 @@ instead of a workflow-level `env:` expression. Confirmed the fix the same
 way as the line-length one above: not just reasoned through, but pushed
 and watched the `build` job's own `Compute lowercase image name` step run
 and the subsequent push succeed.
+
+## README hero image, drawn from scratch with Pillow
+
+User request (2026-08-28): a Home Assistant icon and a ZeroClaw icon side
+by side at the top of this README. No image-generation tool was
+available, so this was drawn programmatically with Pillow (plain shape
+primitives, not traced from any existing logo file) — same house glyph
+and crab glyph as the brand icon generated for the companion
+`ha-zeroclaw-conversation` repo (`assets/ha-zeroclaw.png` here mirrors
+`custom_components/zeroclaw_conversation/brand/icon.png` there, same
+coordinate math, just laid out as two separate badges instead of one
+diagonal split). See that repo's `docs/DECISIONS.md` for the full story,
+including three earlier claw-icon attempts that didn't read correctly
+before a whole crab silhouette did.

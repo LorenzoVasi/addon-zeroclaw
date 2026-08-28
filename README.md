@@ -1,5 +1,9 @@
 # ZeroClaw — Home Assistant Add-on
 
+<p align="center">
+  <img src="assets/ha-zeroclaw.png" alt="Home Assistant + ZeroClaw" width="240" />
+</p>
+
 Runs [ZeroClaw](https://github.com/zeroclaw-labs/zeroclaw) — a self-hosted,
 provider-agnostic autonomous AI agent — as a Home Assistant add-on, with:
 
