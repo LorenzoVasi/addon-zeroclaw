@@ -939,3 +939,78 @@ side by side instead of the hand-drawn house/crab. Full story, including
 why the first `curl` attempt silently returned an HTML bot-challenge page
 instead of the image, in the companion `ha-zeroclaw-conversation` repo's
 `docs/DECISIONS.md`.
+
+## Seed `live_pricing` for every provider, `chat_template_kwargs` for self-hosted ones
+
+User request (2026-08-28): "voglio che il LivePricing sia attivo come
+flag su zeroclaw, in modo tale che i costi vengano segnati sulla
+dashboard" — then, mid-session, a second request to also suppress
+"thinking"/reasoning output on self-hosted models via
+`chat_template_kwargs = { enable_thinking = false }`.
+
+Both are real, confirmed fields on ZeroClaw's model-provider config
+struct (read directly from `crates/zeroclaw-config/src/schema.rs`, not
+guessed from the dashboard or public docs — same discipline as
+everything else in this file):
+
+- **`live_pricing: bool`** (schema.rs:898, default `false`): pulls
+  per-token prices straight from the provider's own `/models` listing
+  (falling back to the public models.dev catalog), filling only the
+  pricing dimensions the operator hasn't hand-configured under
+  `[cost.rates]` — never overrides a configured rate. `[cost] enabled`
+  already defaults to `true` (schema.rs:6619 area), so `live_pricing`
+  alone is the only thing missing for the dashboard's Cost tab to show
+  real `$` figures without the operator hand-entering a rate sheet.
+  Applied to **every** seeded provider unconditionally — there's no
+  downside to it for any provider type, unlike the field below.
+- **`chat_template_kwargs`** (schema.rs:928, `Option<serde_json::Value>`,
+  a TOML inline table): forwarded verbatim as a top-level JSON object in
+  the request body of OpenAI-compatible endpoints; consumed only by
+  chat-template-aware backends (vLLM, SGLang, llama.cpp) — cloud
+  providers (anthropic, openai, gemini, etc.) don't read it at all. The
+  struct's own doc comment cites the *exact* example the user asked
+  for ("Qwen3 thinking suppression"), which is what made this an easy
+  field to confirm rather than guess at. Scoped to `provider_type`
+  `ollama`/`custom` only (asked the user directly — "tutti i provider
+  self-hosted/custom" — rather than guessing whether it should apply
+  everywhere; a stray `chat_template_kwargs` on an Anthropic/OpenAI
+  cloud provider would just be silently ignored, but writing it there
+  anyway would be confusing clutter in `config.toml` for a field with
+  zero effect on that provider type).
+
+Both are written in `run.sh`'s existing provider-reconciliation loop
+(same block that seeds `api_key`/`model`/`uri`, delete-then-recreate
+every boot — see the provider key-rotation entry above), not as new
+add-on options: `live_pricing` needed no operator input at all (always
+on), and `chat_template_kwargs` is populated from `provider_type` alone
+(the add-on's options schema doesn't need a new field either), keeping
+this add-on's options surface exactly as minimal as the "why so few
+options" design already commits to.
+
+**Verified against a real running container**, not just read from
+source: built the image, seeded three providers (`anthropic`, `custom`,
+`ollama`) via a fake `options.json`, and confirmed the actual written
+`config.toml`:
+
+```toml
+[providers.models.anthropic.household]
+api_key = "sk-ant-fake-key-for-testing"
+model = "claude-sonnet-4-5"
+live_pricing = true
+
+[providers.models.custom.local_qwen]
+model = "qwen3-32b"
+uri = "http://vllm-host:8000/v1"
+live_pricing = true
+chat_template_kwargs = { enable_thinking = false }
+
+[providers.models.ollama.local_llama]
+model = "llama3"
+live_pricing = true
+chat_template_kwargs = { enable_thinking = false }
+```
+
+Exactly the intended scoping — `anthropic` gets only `live_pricing`,
+`custom`/`ollama` get both — and the daemon booted healthy
+(`GET /health` succeeded) with no TOML parse errors or warnings in the
+logs for either new field.

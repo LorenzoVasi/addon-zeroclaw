@@ -289,6 +289,28 @@ if [ "${provider_count}" -gt 0 ]; then
             [ -n "${p_api_key}" ] && printf 'api_key = "%s"\n' "${p_api_key}"
             [ -n "${p_model}" ] && printf 'model = "%s"\n' "${p_model}"
             [ -n "${p_uri}" ] && printf 'uri = "%s"\n' "${p_uri}"
+            # Pull live per-token prices from this provider's own /models
+            # listing (falls back to models.dev) instead of requiring the
+            # operator to hand-enter a [cost.rates] sheet — confirmed field
+            # (schema.rs's ModelProviderConfig, default false) that only
+            # fills pricing gaps, never overrides a configured rate. Cost
+            # tracking itself ([cost].enabled) already defaults to true, so
+            # this alone is what's needed for the dashboard's Cost tab to
+            # show real $ figures out of the box.
+            echo 'live_pricing = true'
+            # Suppress "thinking"/reasoning output for self-hosted providers
+            # (ollama, custom — the chat-template-aware backends: vLLM,
+            # SGLang, llama.cpp). `chat_template_kwargs` is forwarded
+            # verbatim to the request body of OpenAI-compatible endpoints;
+            # cloud providers (anthropic, openai, gemini, etc.) don't consume
+            # it at all, so it's only written for the self-hosted types —
+            # confirmed field + exact example (schema.rs:928, "Qwen3 thinking
+            # suppression").
+            case "${p_type}" in
+                ollama | custom)
+                    echo 'chat_template_kwargs = { enable_thinking = false }'
+                    ;;
+            esac
         } >> "${CONFIG_FILE}"
     done
 fi
