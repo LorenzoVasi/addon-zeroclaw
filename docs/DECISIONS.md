@@ -928,3 +928,14 @@ coordinate math, just laid out as two separate badges instead of one
 diagonal split). See that repo's `docs/DECISIONS.md` for the full story,
 including three earlier claw-icon attempts that didn't read correctly
 before a whole crab silhouette did.
+
+**Superseded the same session**: the drawn version above wasn't wanted —
+"usa le icone originali di zeroclaw e homeassistant, non generartele te,
+cercale su internet e usa quelle." User supplied the real icons directly
+(exact source URLs: Home Assistant's own circuit-tree house mark, and
+ZeroClaw's own official claw icon served from `zeroclaw.dev`, their own
+domain). `assets/ha-zeroclaw.png` now composites those two real assets
+side by side instead of the hand-drawn house/crab. Full story, including
+why the first `curl` attempt silently returned an HTML bot-challenge page
+instead of the image, in the companion `ha-zeroclaw-conversation` repo's
+`docs/DECISIONS.md`.
