@@ -4,6 +4,12 @@
   <img src="assets/ha-zeroclaw.png" alt="Home Assistant + ZeroClaw" width="240" />
 </p>
 
+<p align="center">
+  <a href="https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FLorenzoVasi%2Faddon-zeroclaw">
+    <img src="https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg" alt="Open your Home Assistant instance and show the add add-on repository dialog with this repository pre-filled." />
+  </a>
+</p>
+
 [ZeroClaw](https://github.com/zeroclaw-labs/zeroclaw) is a self-hosted AI
 agent — think of it as an assistant that actually lives on your own
 hardware, works with whichever AI provider you prefer, and can be taught to
