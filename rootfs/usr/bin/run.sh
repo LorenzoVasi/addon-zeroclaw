@@ -54,6 +54,48 @@ if [ ! -f "${CONFIG_FILE}" ]; then
     zeroclaw config set --no-interactive risk_profiles.default.auto_approve \
         '["file_read","file_write","file_edit","memory_recall","memory_store","web_search_tool","web_fetch","calculator","glob_search","content_search","image_info","weather","git_operations","tool_search","browser","browser_open"]' \
         || echo "[zeroclaw-addon] WARNING: could not reconcile risk_profiles.default.auto_approve drift — the dashboard may show a one-time 'path differs from on-disk' banner."
+
+    # Memory defaults for a household assistant meant to accumulate durable
+    # knowledge over months, not a disposable dev session — first-boot-only
+    # (this whole block only runs once, ever, per install), so these are a
+    # starting point, not something reasserted over any later dashboard edit
+    # (unlike risk_profiles/providers above, which have a confirmed reason to
+    # be reconciled every boot — see docs/DECISIONS.md). All five fields
+    # confirmed against `crates/zeroclaw-config/src/schema.rs`'s
+    # `MemoryConfig`, default `false` unless noted:
+    #   - snapshot_enabled + snapshot_on_hygiene: periodic export of Core
+    #     memories to MEMORY_SNAPSHOT.md. Off by default in ZeroClaw itself,
+    #     which is a real gap for this use case — `auto_hydrate` is already
+    #     `true` by default, but hydration needs a snapshot to hydrate
+    #     *from*; without these two, a lost/corrupted brain.db means
+    #     everything the agent ever learned about the household is gone with
+    #     no way back.
+    #   - dedup_on_write: collapses near-duplicate memories at write time —
+    #     worth having on for a long-running install where the same
+    #     household preference gets mentioned slightly differently across
+    #     many separate conversations over months.
+    #   - policy.redact_on_write: strips secrets/PII (email, phone, api keys,
+    #     etc. — see `default_memory_redact_categories`) before persisting to
+    #     durable memory. Lives under `[memory.policy]`, not `[memory]`
+    #     directly (`MemoryPolicyConfig`, a separate `#[prefix]`) — confirmed
+    #     the hard way, a bare `memory.redact_on_write` path errors "Unknown
+    #     property" against the pinned image. This agent has deep access to
+    #     household life; off by default in ZeroClaw generally, but worth
+    #     defaulting on here.
+    #   - response_cache_enabled: skips a repeated LLM call (and its cost)
+    #     for a duplicate prompt within the TTL window — a natural pairing
+    #     with `live_pricing` below, given the cost-visibility work this
+    #     session.
+    for kv in \
+        "memory.snapshot_enabled true" \
+        "memory.snapshot_on_hygiene true" \
+        "memory.dedup_on_write true" \
+        "memory.policy.redact_on_write true" \
+        "memory.response_cache_enabled true"; do
+        # shellcheck disable=SC2086 # intentional word-split: "<path> <value>"
+        zeroclaw config set --no-interactive ${kv} \
+            || echo "[zeroclaw-addon] WARNING: could not seed default ${kv%% *}."
+    done
 fi
 
 # ZeroClaw binds loopback-only on an internal port; nginx (started below) is

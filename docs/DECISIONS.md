@@ -1014,3 +1014,66 @@ Exactly the intended scoping — `anthropic` gets only `live_pricing`,
 `custom`/`ollama` get both — and the daemon booted healthy
 (`GET /health` succeeded) with no TOML parse errors or warnings in the
 logs for either new field.
+
+## First-boot memory defaults for a household install
+
+User request (2026-08-28): "inserisci i parametri che mi consigli per il
+memory durante il boot di default" — pick sensible `[memory]` defaults
+for this add-on's actual use case (a household assistant meant to
+accumulate durable knowledge for months, not a disposable dev session)
+and seed them.
+
+Five fields flipped from ZeroClaw's own general-purpose defaults (all
+confirmed real against `crates/zeroclaw-config/src/schema.rs`'s
+`MemoryConfig`/`MemoryPolicyConfig`, not guessed):
+
+- `memory.snapshot_enabled` + `memory.snapshot_on_hygiene` (both default
+  `false`): periodic export of Core memories to `MEMORY_SNAPSHOT.md`.
+  `memory.auto_hydrate` is already `true` by default, but hydration needs
+  a snapshot to hydrate *from* — without these two, a lost/corrupted
+  `brain.db` means everything the agent ever learned about the household
+  is gone with no way back.
+- `memory.dedup_on_write` (default `false`): collapses near-duplicate
+  memories at write time — the same household preference tends to get
+  mentioned slightly differently across many separate conversations over
+  months.
+- `memory.policy.redact_on_write` (default `false`): strips secrets/PII
+  (email, phone, api keys, etc.) before persisting to durable memory,
+  given how much household life this agent has visibility into.
+- `memory.response_cache_enabled` (default `false`): skips a repeated LLM
+  call (and its cost) for a duplicate prompt within the TTL window — pairs
+  naturally with the `live_pricing` work right above.
+
+Seeded via `zeroclaw config set --no-interactive`, inside the existing
+`if [ ! -f "${CONFIG_FILE}" ]` first-boot-only block (the same one that
+fixes the `risk_profiles.default.auto_approve` seed mismatch) — **not**
+the reconcile-every-boot pattern used for providers/risk-profiles/MCP
+bundles. Deliberate: those are add-on-owned settings with a confirmed
+reason to be reauthoritative on every boot; memory tuning is a starting
+point the household should be free to change afterward (dashboard or
+`zeroclaw config set`) without the add-on quietly reverting it on the
+next restart. Since config.toml only gets created once and this whole
+block only ever runs that one time, placing the seeding here gets "seed
+once, never fight later edits" for free, without needing a separate
+first-boot marker file.
+
+**A real near-miss caught by testing against a container, not just
+reading the schema**: the first attempt used `memory.redact_on_write`,
+which failed with `Error: Unknown property 'memory.redact_on_write'`
+against the pinned image. The field is real, just not where it looks —
+it lives on `MemoryPolicyConfig` (`#[prefix = "memory.policy"]`), a
+*separate* struct from the top-level `MemoryConfig` (`#[prefix =
+"memory"]`) it sits next to in the doc comments, so the correct path is
+`memory.policy.redact_on_write`. `zeroclaw config set`'s own error
+caught this immediately and correctly — not a version-pinning gap like
+some other `config set` paths in this file, just a path mistake, but
+exactly the kind of thing that's invisible from reading the schema
+struct alone and only surfaces by actually running the command.
+
+Verified against a real built container: booted with three providers
+configured, confirmed the log shows `memory.snapshot_enabled updated.` /
+`memory.snapshot_on_hygiene updated.` / `memory.dedup_on_write updated.`
+/ `memory.policy.redact_on_write updated.` / `memory.response_cache_enabled
+updated.` (all five, no errors after the path fix), confirmed the actual
+written `config.toml` has `[memory]` and `[memory.policy]` holding the
+right values, and the daemon booted healthy (`GET /health` succeeded).
