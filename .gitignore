@@ -1,3 +1,6 @@
 .DS_Store
 *.log
 .claude/
+
+# Local working notes (state since the last release) — not shared.
+STATUS.md
