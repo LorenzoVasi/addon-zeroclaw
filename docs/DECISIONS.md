@@ -1320,3 +1320,60 @@ rotating.
 The new assertions were dry-run against a real container before being
 committed; the workflow files themselves can only be proven by the first
 CI run.
+
+## Versioning and releases
+
+Adopted 2026-09-05, on request, after both repositories had accumulated
+a lot of shipped-but-unreleased work: this add-on's `config.yaml` still
+said `0.1.0` after a ZeroClaw major-version bump and half a dozen
+behaviour changes, and the companion integration's only release predated
+its webhook-secret support entirely. These are the rules from here on.
+The companion repo carries the same rules, adjusted for HACS.
+
+**The two repositories version independently.** They are separate
+installs with separate distribution mechanisms (Supervisor here, HACS
+there) and nobody updates both at the same instant, so lockstep
+versioning would be a lie. A household can legitimately run add-on 0.3.0
+against integration 0.2.0.
+
+**The consequence, and the rule that matters most:** when a release
+introduces something that only works if the *other* side is also
+updated, both changelogs say so explicitly, naming the minimum version
+of the counterpart. The `webhook_secret` in 0.2.0 is the first case —
+set on one side alone it silently 401s the other's calls.
+
+**`0.MINOR.PATCH`, and no 1.0 yet.**
+
+- MINOR: anything a household would want to know before pressing update
+  — a new option, changed default behaviour, a ZeroClaw version bump.
+- PATCH: a fix that changes nothing they can observe.
+- 1.0 waits until the "not yet verified on a live instance over months"
+  caveats are gone from the READMEs. Claiming 1.0 before that would be
+  the version number making a promise the docs contradict.
+
+**The version lives in `config.yaml`.** That is the only thing
+Supervisor compares to decide an update is available; forgetting it
+means the work simply never reaches the household, which is exactly what
+happened before this entry existed. `CHANGELOG.md` is user-facing here —
+Home Assistant renders it in the update dialog — so it is written for
+whoever is deciding whether to press the button, not for whoever wrote
+the code. Implementation detail belongs in this file instead.
+
+**Every release gets an annotated git tag `v<version>`**, so `git show
+v0.2.0` answers "what was actually shipped" later. A GitHub Release is
+also published, purely for the readable changelog page — Supervisor
+never reads it (it tracks the branch), unlike the companion repo where
+HACS genuinely requires one.
+
+**Before tagging:** CI green on `main`, including the cross-repo
+end-to-end job, and — because of this project's whole history — anything
+touching `run.sh`, the `Dockerfile` or `nginx.conf` verified against a
+real running container, not just a successful build. The automated boot
+assertions cover much of that now, but they are a floor, not a
+substitute for looking.
+
+**History is not reconstructed.** Work that reached `main` untagged is
+covered by the next real release, in one honest entry spanning the
+range. Inventing intermediate version numbers after the fact to make the
+history look tidy would produce tags that never corresponded to anything
+anyone could install.
