@@ -60,12 +60,19 @@ so you can just talk to it.
    set up, then paste in a Home Assistant
    [long-lived access token](https://www.home-assistant.io/docs/authentication/#your-account-profile)
    so ZeroClaw already knows how to reach your home the moment it starts.
-4. Start the add-on and open its **Web UI** from the sidebar — that's
+4. Optional extra lock: set a **`webhook_secret`** too. It adds a second
+   check on top of the API token, but only for the agent-facing
+   `/webhook` endpoint — if you set it here, put the *same* value in the
+   `zeroclaw_conversation` integration, or its AI Tasks, `notify_agent`
+   calls and watch follow-ups will start getting rejected. Talking to
+   Assist is unaffected either way. Leave it blank if you'd rather not
+   bother; nothing else changes.
+5. Start the add-on and open its **Web UI** from the sidebar — that's
    where you actually finish setting it up: pick an AI provider, paste its
    key, and you're ready to go. This add-on deliberately doesn't duplicate
    that configuration screen; everything beyond the basics happens inside
    ZeroClaw itself.
-5. (Optional) Install the
+6. (Optional) Install the
    [`zeroclaw_conversation`](https://github.com/LorenzoVasi/ha-zeroclaw-conversation)
    integration to plug ZeroClaw into Assist.
 

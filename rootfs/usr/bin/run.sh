@@ -120,6 +120,7 @@ export ZEROCLAW_gateway__port="8099"
 
 log_level="$(jq -r '.log_level // "info"' "${OPTIONS_FILE}")"
 api_token="$(jq -r '.api_token // empty' "${OPTIONS_FILE}")"
+webhook_secret="$(jq -r '.webhook_secret // empty' "${OPTIONS_FILE}")"
 ha_url="$(jq -r '.home_assistant_url // empty' "${OPTIONS_FILE}")"
 ha_token="$(jq -r '.home_assistant_token // empty' "${OPTIONS_FILE}")"
 
@@ -151,6 +152,41 @@ if [ -n "${api_token}" ]; then
 else
     echo "[zeroclaw-addon] WARNING: no api_token set in add-on options — /webhook and the REST API are open to anything that can reach the add-on's internal address. Set one in the add-on Configuration tab."
     zeroclaw config set --no-interactive gateway.require_pairing false
+fi
+
+# Optional second factor on `POST /webhook` (and `/sop/*`), on top of the
+# pairing bearer above: `gateway.webhook_secret`, sent by callers as an
+# `X-Webhook-Secret` header. Landed in ZeroClaw 0.8.5 — it genuinely did
+# not exist in 0.8.4 (see docs/DECISIONS.md). Additive, never a
+# replacement: with `require_pairing = true` both the bearer AND this
+# header must be correct, and it does not cover `/ws/chat` (Assist) or
+# `/api/*` (the companion integration's config flow) at all.
+#
+# **Set as an env var, deliberately, not via `zeroclaw config set`.**
+# `zeroclaw config set --no-interactive gateway.webhook_secret <value>`
+# prints `gateway.webhook_secret updated.` and `zeroclaw config list`
+# then shows it as `****`, but nothing is ever written to config.toml and
+# `GET /api/config/prop?path=gateway.webhook_secret` keeps reporting
+# `{"populated": false}` — reproduced on a real dist-v0.8.5 container,
+# both against a running daemon and with the daemon stopped, twice. The
+# encryption path itself is fine (`gateway.paired_tokens`, the same
+# secret class, lands as `enc2:...` in the same file and reports
+# `populated: true`), so this is specific to this one field. Trusting the
+# CLI's success message here would be actively dangerous: the operator
+# would believe `/webhook` had a second lock on it while it in fact had
+# none. The env var takes effect correctly — verified with the full auth
+# matrix (bearer+correct secret passes; bearer+wrong secret and bearer
+# alone both get 401).
+#
+# Empty (the default) means the header is not required at all, exactly
+# the pre-0.8.5 behavior — nothing breaks for an install that never sets
+# it. When set, the companion integration MUST be given the same value
+# (its own `webhook_secret` field), or its `/webhook` calls — ai_task,
+# the notify_agent service, and a fired watch's follow-up — start failing
+# with 401.
+if [ -n "${webhook_secret}" ]; then
+    export ZEROCLAW_gateway__webhook_secret="${webhook_secret}"
+    echo "[zeroclaw-addon] Webhook secret configured — /webhook additionally requires an X-Webhook-Secret header."
 fi
 
 # Lets the dashboard's own "reload" action (shown when it detects the

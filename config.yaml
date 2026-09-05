@@ -23,12 +23,14 @@ hassio_api: false
 options:
   log_level: info
   api_token: ""
+  webhook_secret: ""
   home_assistant_url: "http://homeassistant:8123"
   home_assistant_token: ""
   providers: []
 schema:
   log_level: list(trace|debug|info|warn|error)
   api_token: password?
+  webhook_secret: password?
   home_assistant_url: url?
   home_assistant_token: password?
   providers:

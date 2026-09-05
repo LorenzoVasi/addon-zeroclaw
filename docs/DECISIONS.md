@@ -1166,6 +1166,9 @@ separate boots:
   worth a dedicated follow-up to evaluate switching to the "real"
   mechanism, but that's a design change to both repos' auth story, not
   something to fold into a version-bump commit. Not acted on here.
+  **⚠️ Corrected in the next entry — "switching to it" is not a thing
+  that exists; it is additive to pairing, not an alternative, and the
+  `config set` path for it is silently broken.**
 - `config set` on a dynamic `mcp.servers.<name>.<field>` path — still
   rejected (`Error: Unknown property 'mcp.servers.testsrv.url'`), same
   as 0.8.4. This add-on's existing workaround (`PUT /api/config/prop`
@@ -1206,4 +1209,77 @@ on yet:**
 by name are left untouched — they're an accurate record of what was
 true when they were written, not a description of the currently
 pinned version.
-healthy.
+
+## `gateway.webhook_secret`: what it actually is, and the `config set` trap
+
+User request (2026-09-05): "usa la nuova implementazione per i segreti di
+webhook, esegui la correzione" — adopt the `gateway.webhook_secret`
+support flagged in the entry above.
+
+**Correction to that entry first.** It described this field as a "real"
+mechanism the pairing-token approach might be *switched to*. That framing
+was wrong, inherited from an older session's assumption that pairing was
+a workaround standing in for a missing webhook secret. ZeroClaw 0.8.5's
+own `docs/book/src/ops/network-deployment.md` is explicit:
+
+> The gateway's `POST /webhook` and SOP-only `POST /sop/*` routes can
+> require an exact shared-secret header **independently of pairing**. […]
+> When `require_pairing = true` and `webhook_secret` is set, callers must
+> send **both** the paired bearer token and the webhook secret.
+
+So it is **additive, and narrow**: a second factor on `/webhook` and
+`/sop/*` only. It does not cover `/ws/chat` (every Assist turn) or
+`/api/*` (the companion integration's entire config flow, personality
+writes, session cleanup). Pairing was never a stand-in for it and
+"switching" to it was never possible — dropping pairing in its favour
+would have left both of those surfaces wide open.
+
+**The trap: `zeroclaw config set` for this field silently does nothing.**
+Reproduced on a real `dist-v0.8.5` container:
+
+| what was checked | result |
+|---|---|
+| `zeroclaw config set --no-interactive gateway.webhook_secret <v>` | prints `gateway.webhook_secret updated.` |
+| `zeroclaw config list` afterwards | shows `gateway.webhook_secret = ****` |
+| `grep webhook_secret config.toml` | **no such line — nothing was written** |
+| `GET /api/config/prop?path=gateway.webhook_secret` | **`{"populated": false}`** |
+| repeating the write | same, still `populated: false` |
+| runtime auth matrix (pairing on) | bearer alone → passes; bearer + **wrong** secret → **passes** |
+| runtime auth matrix (pairing off) | no headers at all → **passes**, i.e. wide open |
+
+Both write attempts were made with the daemon stopped as well as running,
+so this is not the "`config set` against a live daemon doesn't persist"
+rule already documented elsewhere in this file. The encryption machinery
+is fine: `gateway.paired_tokens` is the same `#[secret]` class and lands
+in the same file as `enc2:…` with `populated: true`. It is specific to
+this one field.
+
+This is the dangerous kind of bug — the CLI *reports success* and
+`config list` *shows a masked value*, so an operator would reasonably
+believe `/webhook` had a second lock on it while it had none at all.
+Anyone who had also turned pairing off on that belief would have left
+`/webhook` completely unauthenticated on the HA internal network.
+
+**The env var works correctly.** `ZEROCLAW_gateway__webhook_secret` (the
+same `ZEROCLAW_<section>__<field>` grammar `run.sh` already uses for
+`gateway.host`/`gateway.port`) reports `populated: true` and enforces
+exactly as documented — verified with the full matrix: bearer + correct
+secret passes, bearer + wrong secret → **401**, bearer alone → **401**.
+
+**What was implemented**, therefore: a new optional add-on option
+`webhook_secret`, exported as that env var when non-empty and simply not
+exported when blank. Blank is the default and reproduces today's
+behavior exactly — verified separately with an `options.json` that has no
+such key at all (nothing exported, `populated: false`, bearer-only calls
+still pass), which is precisely the state every existing install is in,
+so upgrading changes nothing until the option is deliberately set.
+
+The companion integration gained the matching `X-Webhook-Secret` header
+(see its own `docs/DECISIONS.md`). The two sides must agree: if the
+add-on sets a secret and the integration doesn't have the same one, its
+`/webhook` calls — `ai_task`, the `notify_agent` service, and a fired
+watch's follow-up — start failing with 401. Assist keeps working
+regardless, since it goes over `/ws/chat`.
+
+Not reported upstream from here — filing an issue on someone else's
+repository is the user's call, not this session's.
