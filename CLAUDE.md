@@ -24,7 +24,7 @@ silently) when you find something new the hard way.
 ## Architecture at a glance
 
 - `Dockerfile`: multi-stage — lifts the ZeroClaw binary + web dashboard out
-  of `ghcr.io/zeroclaw-labs/zeroclaw:dist-v0.8.4` (distroless, no shell)
+  of `ghcr.io/zeroclaw-labs/zeroclaw:dist-v0.8.5` (distroless, no shell)
   into a `debian:trixie-slim` stage with `nginx-light`, `curl`, `jq`.
 - `rootfs/etc/nginx/nginx.conf`: nginx sits in front of ZeroClaw purely to
   (a) strip ZeroClaw's hardcoded anti-iframe headers (breaks HA Ingress

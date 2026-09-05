@@ -1108,3 +1108,102 @@ Verified against a real built container: log shows `memory.auto_save
 updated.` alongside the other five, the written `config.toml`'s
 `[memory]` section has `auto_save = false`, and the daemon boots
 healthy.
+
+## Bumped pinned ZeroClaw to v0.8.5
+
+User request (2026-08-31, referencing
+https://github.com/zeroclaw-labs/zeroclaw/releases/tag/v0.8.5): move off
+`dist-v0.8.4`, explain the differences, confirm everything still works,
+and flag any new feature worth adopting.
+
+Read the actual release body (`gh release view v0.8.5`, not a summary)
+before touching anything, per this project's own standing rule. 454
+commits, 73 contributors. **None of the 7 breaking changes apply to
+this project**: typed plugin instance config, skill-HTTP fail-closed,
+retired legacy node transport, TodoWrite→ZeroCode config move, WATI
+channel removal, Aardvark/robot-kit crate removal, and the Cargo
+package rename to `zeroclaw` (source-build-only) — this add-on uses
+none of plugins, skills-with-HTTP-placeholders, `[node_transport]`,
+TodoWrite, WATI, or building from source; it only ever consumes the
+published `dist-v0.8.X` image tag.
+
+Confirmed the `dist-v0.8.5` tag is actually published multi-arch
+(`docker manifest inspect`: amd64 + arm64 present) before switching
+the `Dockerfile`'s `ARG ZEROCLAW_IMAGE_TAG` default.
+
+**Verified against real containers, not just the changelog** — three
+separate boots:
+1. Providers only (`anthropic`/`custom`/`ollama`, no HA integration):
+   every seeded field identical to the 0.8.4 behavior documented
+   elsewhere in this file — `live_pricing`/`chat_template_kwargs`
+   scoping correct, all six `[memory]`/`[memory.policy]` fields set,
+   daemon healthy.
+2. With `home_assistant_url`/`home_assistant_token` set: MCP server
+   seeding, `http_request` allowlist seeding, and the post-boot
+   MCP-bundle + risk-profile reconciliation loop all ran and logged
+   success identically to 0.8.4 — confirmed live via the API afterward
+   (`GET /api/config/prop?path=risk_profiles.default.always_ask` shows
+   exactly the four cover tools; `agents.default.mcp_bundles` shows
+   `["home_assistant"]`).
+3. `GET /api/config/drift` returned `{"drifted":[]}` — **the upstream
+   baked-in-seed mismatch this add-on works around for 0.8.4
+   (`risk_profiles.default.auto_approve` missing `tool_search`/
+   `browser`/`browser_open` against that version's own in-memory
+   defaults) appears fixed upstream in 0.8.5.** This add-on's own
+   reconciliation call is now a no-op confirmation rather than an
+   actual fix on this version — left in rather than removed, since it's
+   harmless, still correct, and this project doesn't yet support
+   version-conditional behavior in `run.sh`.
+
+**Two other 0.8.4-specific gaps re-checked directly against a running
+0.8.5 container, not assumed from the changelog:**
+- `gateway.webhook_secret` — **now exists** (`zeroclaw config list`
+  shows `gateway.webhook_secret = <unset> (Option<String>) 🔒`), where
+  it was confirmed entirely absent on 0.8.4 (see the entry earlier in
+  this file). This add-on and the companion `ha-zeroclaw-conversation`
+  integration currently authenticate machine calls via the pairing-
+  token workaround specifically *because* this field didn't exist —
+  worth a dedicated follow-up to evaluate switching to the "real"
+  mechanism, but that's a design change to both repos' auth story, not
+  something to fold into a version-bump commit. Not acted on here.
+- `config set` on a dynamic `mcp.servers.<name>.<field>` path — still
+  rejected (`Error: Unknown property 'mcp.servers.testsrv.url'`), same
+  as 0.8.4. This add-on's existing workaround (`PUT /api/config/prop`
+  for this specific dynamic map, documented earlier in this file)
+  remains necessary, not a 0.8.4-only limitation.
+
+**New things from the 0.8.5 changelog worth knowing about, none acted
+on yet:**
+- Real, patched security issues: a Wasmtime sandbox escape and a
+  plugin `wasm_path` traversal arbitrary-write (GHSA-93f6-34w8-5g98) —
+  a good reason to upgrade on its own, independent of any feature.
+- "Preserve cost-cache and period calculations" — a bug fix landing
+  directly in the cost-tracking feature this add-on just started
+  configuring (`live_pricing`, see the entry above).
+- Anthropic `thinking.display`: eligible models (this household's
+  `anthropic.household` provider included) can now stream readable
+  thinking updates in ZeroClaw's own dashboard chat, opt-in, while
+  still keeping signed reasoning for replay. Not surfaced through
+  Assist/the companion integration (which only ever sees the final
+  text), only relevant to someone chatting with the agent directly
+  through ZeroClaw's own dashboard.
+- Multiple independent conversations per agent, and the same agent
+  open in several dashboard tabs at once — a dashboard-chat UX
+  improvement, unrelated to how the companion integration talks to
+  ZeroClaw over `/ws/chat` (that scheme is unaffected either way).
+- A new `memory_semantic_search_without_embedder` config warning,
+  surfaced by `GET /api/config/prop`, noticed incidentally while
+  testing: `memory.search_mode` defaults to `"hybrid"`, but this
+  add-on never configures `memory.embedding_provider`, so vector
+  search is silently skipped and recall is keyword-only in practice
+  already. Not something this session changed — flagged as a candidate
+  for either seeding `memory.search_mode = "bm25"` (to match reality
+  explicitly) or documenting that an embedding provider needs manual
+  setup for genuine hybrid search, the next time `[memory]` defaults
+  are revisited.
+
+`CHANGELOG.md` and older entries in this file that reference `v0.8.4`
+by name are left untouched — they're an accurate record of what was
+true when they were written, not a description of the currently
+pinned version.
+healthy.

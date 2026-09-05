@@ -8,7 +8,7 @@
 # script inside it. Instead we lift the finished binary + web dashboard
 # assets out of it via multi-stage COPY into a normal Debian base that has
 # a shell, bump this ARG when ZeroClaw cuts a new release.
-ARG ZEROCLAW_IMAGE_TAG=dist-v0.8.4
+ARG ZEROCLAW_IMAGE_TAG=dist-v0.8.5
 
 FROM ghcr.io/zeroclaw-labs/zeroclaw:${ZEROCLAW_IMAGE_TAG} AS zeroclaw
 
