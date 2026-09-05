@@ -30,13 +30,21 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/zc-boot-test/data
+          # Exercises the paths that actually differ per option: a cloud
+          # provider, a self-hosted one (the only kind that gets
+          # `chat_template_kwargs`), and the webhook secret.
           cat > /tmp/zc-boot-test/options.json <<'EOF'
           {
             "log_level": "info",
             "api_token": "ci-smoke-test-token",
+            "webhook_secret": "ci-webhook-secret",
             "home_assistant_url": "",
             "home_assistant_token": "",
-            "providers": []
+            "providers": [
+              {"provider_type": "anthropic", "alias": "cloud",
+               "api_key": "sk-ant-fake", "model": "claude-sonnet-4-5"},
+              {"provider_type": "ollama", "alias": "local", "model": "llama3"}
+            ]
           }
           EOF
           docker run -d --name zc-boot-test \
@@ -44,7 +52,7 @@ jobs:
             -v /tmp/zc-boot-test/data:/data/zeroclaw \
             zeroclaw-addon-boot-test
 
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             if docker exec zc-boot-test curl -sf -m 2 http://127.0.0.1:8099/health >/dev/null 2>&1; then
               echo "Healthy after ${i}s."
               exit 0
@@ -52,8 +60,66 @@ jobs:
             sleep 1
           done
 
-          echo "::error::Container never became healthy within 30s."
+          echo "::error::Container never became healthy within 45s."
           exit 1
+
+      # Booting proves run.sh didn't crash; it does not prove run.sh did
+      # anything. Every assertion below corresponds to a bug that has
+      # actually shipped from this repo or a silent no-op found while
+      # testing — see docs/DECISIONS.md.
+      - name: Assert the boot sequence actually seeded what it claims
+        run: |
+          set -euo pipefail
+          cfg="$(docker exec zc-boot-test cat /data/zeroclaw/.zeroclaw/config.toml)"
+
+          fail() { echo "::error::$1"; echo "--- config.toml ---"; echo "${cfg}"; exit 1; }
+
+          # `live_pricing` belongs on every provider; `chat_template_kwargs`
+          # only on the chat-template-aware (self-hosted) ones, since a
+          # cloud provider never reads it.
+          echo "${cfg}" | grep -q '^\[providers.models.anthropic.cloud\]' \
+            || fail "the anthropic provider block was not seeded"
+          echo "${cfg}" | grep -q '^\[providers.models.ollama.local\]' \
+            || fail "the ollama provider block was not seeded"
+          [ "$(echo "${cfg}" | grep -c '^live_pricing = true$')" -eq 2 ] \
+            || fail "live_pricing was not seeded for both providers"
+          [ "$(echo "${cfg}" | grep -c '^chat_template_kwargs = ')" -eq 1 ] \
+            || fail "chat_template_kwargs should be on the self-hosted provider only"
+
+          # First-boot memory defaults. `redact_on_write` lives under
+          # [memory.policy], not [memory] — getting that wrong is a silent
+          # "Unknown property" that only shows up in the log.
+          for line in \
+            'snapshot_enabled = true' \
+            'snapshot_on_hygiene = true' \
+            'dedup_on_write = true' \
+            'auto_save = false' \
+            'response_cache_enabled = true' \
+            'redact_on_write = true'; do
+            echo "${cfg}" | grep -q "^${line}$" || fail "memory default missing: ${line}"
+          done
+
+          # A `config set` that reports success but writes nothing is a
+          # real failure mode here (see docs/DECISIONS.md on
+          # gateway.webhook_secret), so check the daemon's own view rather
+          # than the CLI's word for it.
+          populated="$(docker exec zc-boot-test curl -s \
+            -H 'Authorization: Bearer ci-smoke-test-token' \
+            'http://127.0.0.1:8099/api/config/prop?path=gateway.webhook_secret')"
+          case "${populated}" in
+            *'"populated":true'*) ;;
+            *) fail "gateway.webhook_secret is not live: ${populated}" ;;
+          esac
+
+          # And that it is genuinely enforced, not merely present.
+          code="$(docker exec zc-boot-test curl -s -o /dev/null -w '%{http_code}' \
+            -X POST http://127.0.0.1:8099/webhook \
+            -H 'Authorization: Bearer ci-smoke-test-token' \
+            -H 'Content-Type: application/json' -d '{"message":"x"}')"
+          [ "${code}" = "401" ] \
+            || fail "/webhook accepted a call with no X-Webhook-Secret (got ${code})"
+
+          echo "All boot-sequence assertions passed."
 
       - name: Container logs (always, for debugging a failure above)
         if: always()

@@ -1283,3 +1283,40 @@ regardless, since it goes over `/ws/chat`.
 
 Not reported upstream from here — filing an issue on someone else's
 repository is the user's call, not this session's.
+
+## Boot-test assertions, and a cross-repo end-to-end suite
+
+Companion to the testing work in `ha-zeroclaw-conversation` (see that
+repo's `docs/DECISIONS.md`, "Automated tests"), which holds the Python
+and the fake model; this entry covers what changed on the add-on side.
+
+**The `boot-test` job now asserts, not just boots.** It previously
+proved only that the container reached `/health` — which says `run.sh`
+didn't crash, not that it did anything. It now boots with a
+representative `options.json` (a cloud provider, a self-hosted one, a
+webhook secret) and checks the resulting `config.toml`: both provider
+blocks present, `live_pricing` on both, `chat_template_kwargs` on the
+self-hosted one *only*, and all six first-boot memory defaults including
+`redact_on_write` under `[memory.policy]`. It then asks the running
+daemon whether `gateway.webhook_secret` is `populated`, and confirms
+`/webhook` actually 401s without the header.
+
+Those last two exist because of the failure mode found the hard way this
+session: `zeroclaw config set` on that field reports success, `config
+list` shows a masked value, and nothing is written. A test that trusted
+the CLI would have gone green on a gateway with no second lock at all.
+Asking the daemon, and then actually making the call, is the only check
+worth having here.
+
+**A new `e2e.yml` runs the cross-repo suite from this side too**, by
+checking out the integration repository and using its `tests/e2e/up.sh`
+against this repo's Dockerfile. So a `run.sh` edit or a ZeroClaw version
+bump gets exercised against the integration that depends on it, rather
+than being discovered later on the household's real instance. Neither
+repo needs a token for the other — both are public, and mirroring the
+workflow avoids a `repository_dispatch` PAT that would need creating and
+rotating.
+
+The new assertions were dry-run against a real container before being
+committed; the workflow files themselves can only be proven by the first
+CI run.

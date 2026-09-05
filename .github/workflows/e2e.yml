@@ -1,0 +1,70 @@
+name: End-to-end
+
+# The mirror image of the workflow with the same name in the companion
+# `ha-zeroclaw-conversation` repository: it builds *this* add-on, wires it
+# to a fake model, and drives a real Assist conversation through real
+# Home Assistant core and that integration.
+#
+# The test code itself lives over there, next to the Python it exercises
+# (tests/e2e/, with its own README). Running it from this side too is
+# what makes a change to the add-on — a run.sh edit, a ZeroClaw version
+# bump — get tested against the integration that depends on it, instead
+# of only being noticed later on a real household instance.
+#
+# Neither repository needs a token for the other; both are public and
+# `actions/checkout` handles it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out this add-on
+        uses: actions/checkout@v4
+        with:
+          path: addon-zeroclaw
+
+      - name: Check out the companion integration
+        uses: actions/checkout@v4
+        with:
+          repository: LorenzoVasi/ha-zeroclaw-conversation
+          path: ha-zeroclaw-conversation
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: ha-zeroclaw-conversation/requirements_test.txt
+
+      - run: pip install -r requirements_test.txt
+        working-directory: ha-zeroclaw-conversation
+
+      - name: Bring up the stack (this add-on + a fake model)
+        working-directory: ha-zeroclaw-conversation
+        run: ADDON_REPO="${GITHUB_WORKSPACE}/addon-zeroclaw" ./tests/e2e/up.sh
+
+      - name: Run the end-to-end suite
+        working-directory: ha-zeroclaw-conversation
+        env:
+          ZEROCLAW_E2E_HOST: http://localhost:42617
+          ZEROCLAW_E2E_TOKEN: e2e-token
+        run: python -m pytest -m e2e -q
+
+      - name: ZeroClaw logs (always, for debugging a failure above)
+        if: always()
+        run: docker logs zc-e2e-gw || true
+
+      - name: Fake model logs
+        if: always()
+        run: docker logs fake-llm || true
+
+      - name: Tear down
+        if: always()
+        working-directory: ha-zeroclaw-conversation
+        run: ./tests/e2e/down.sh || true
