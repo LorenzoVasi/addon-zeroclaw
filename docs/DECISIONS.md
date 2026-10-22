@@ -1321,6 +1321,52 @@ The new assertions were dry-run against a real container before being
 committed; the workflow files themselves can only be proven by the first
 CI run.
 
+## Home Assistant renamed its MCP tools; seed both spellings
+
+Found 2026-10-22, right after the user updated Home Assistant: Assist
+small talk worked, any request needing a tool timed out. The integration
+(`ha-zeroclaw-conversation`, same day) now surfaces the `approval_request`
+frame instead of timing out, which named the tool:
+`home_assistant__homeassistant__GetLiveContext`. Home Assistant's MCP
+server now exposes its tools namespaced by LLM API id
+(`homeassistant/components/mcp_server/server.py`:
+`LIVE_CONTEXT_TOOL_NAME = "homeassistant__GetLiveContext"`), and ZeroClaw
+prefixes the bundle name on top. `HA_AUTO_APPROVE_TOOLS` /
+`HA_ALWAYS_ASK_TOOLS` in `run.sh` only listed `home_assistant__<tool>`, so
+under `supervised` every Home Assistant tool fell back to an approval
+prompt.
+
+Fix (0.2.1): `run.sh` expands both lists to each name *and* its
+`home_assistant__homeassistant__` form before the existing additive
+seeding, rather than switching to the new spelling outright — users on an
+older Home Assistant still need the old names, and an entry matching no
+real tool is inert. Same additive policy as before, so the new names
+reach an existing install's risk profile on the next boot without
+touching anything the user set by hand. Not verified in a local container
+(Docker was not running); verified by rebuilding the real add-on and
+asking Assist.
+
+**Correction (0.2.2, same evening).** The `homeassistant__` prefix was
+generalised from one tool, and wrong for the rest: rebuilt, Assist's next
+error named `home_assistant__intent__HassTurnOff`. The prefix is the
+domain of the integration *providing* each tool (`Tool.integration`, via
+`NamespacedTool` in homeassistant/helpers/llm.py), not one fixed API id.
+Read the real list off the instance (`POST /api/mcp`, `tools/list`, read
+only): `intent__` for the generic intents and timers, `light__`,
+`climate__`, `media_player__`, `todo__` (and `todo_get_items` became
+`todo__get_items`), `assist_satellite__HassBroadcast`,
+`homeassistant__GetLiveContext`, `llm__GetDateTime`. Tools not exposed
+there (fan, humidifier, vacuum, lawn mower, shopping list, weather, cover)
+were mapped from where home-assistant/core registers them. ZeroClaw's
+`auto_approve` takes exact names or `"*"` only, so `run.sh` now carries an
+explicit old-name → new-name map (`HA_TOOL_NEW_NAMES`); `"*"` was not an
+option because it would also wave through the cover tools this add-on
+deliberately gates. `HassSetPosition`/`HassStopMoving` are gated under
+both `intent__` and `cover__`: asking once too often is the safe side of
+not knowing which one registers them. The `homeassistant__Hass*` entries
+0.2.1 already seeded match nothing and are left in place, inert —
+seeding is additive and never removes.
+
 ## Versioning and releases
 
 Adopted 2026-09-05, on request, after both repositories had accumulated

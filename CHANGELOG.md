@@ -5,6 +5,27 @@ written for whoever is deciding whether to press the button. Versioning
 rules are in [`docs/DECISIONS.md`](docs/DECISIONS.md) ("Versioning and
 releases").
 
+## 0.2.2
+
+**Finishes the 0.2.1 fix.** 0.2.1 got Home Assistant's live context
+working again but guessed the other tools' new names wrong, so turning a
+light on or off still stopped for approval. Each Home Assistant tool is
+now named after the integration it comes from (`intent__HassTurnOff`,
+`light__HassLightSet`, `media_player__HassMediaPause`, ...); this version
+approves every tool under its real new name, read from a live Home
+Assistant. Opening and closing covers still asks first, as before.
+
+## 0.2.1
+
+**Fixes Home Assistant control after updating Home Assistant.** Recent
+Home Assistant versions renamed the tools they offer the agent (for
+example `GetLiveContext` became `homeassistant__GetLiveContext`). The
+add-on only knew the old names, so every request that touched your home
+— "turn off the bedroom lights" — stopped to ask for approval, which
+Assist can't give, and failed after a timeout. The add-on now approves
+the same tools under both names, so it works on older and newer Home
+Assistant alike. Updating and restarting the add-on is enough.
+
 ## 0.2.0
 
 **Runs ZeroClaw 0.8.5** (was 0.8.4). Real security fixes upstream — a
