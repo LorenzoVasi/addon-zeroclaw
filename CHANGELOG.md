@@ -5,6 +5,31 @@ written for whoever is deciding whether to press the button. Versioning
 rules are in [`docs/DECISIONS.md`](docs/DECISIONS.md) ("Versioning and
 releases").
 
+## 0.3.0
+
+**Runs ZeroClaw 0.8.6** (was 0.8.5): security fixes upstream and many
+provider fixes. Your data carries over: the upgrade was tested by starting
+0.8.5 on a data volume and then 0.8.6 on the same one. ZeroClaw 0.8.6 is
+stricter about database file permissions, so the add-on now tightens them
+itself on every start.
+
+**Home Assistant tools are read live.** On every start the add-on asks
+Home Assistant which tools it offers and approves them by name, whatever
+prefix Home Assistant puts in front. The next time Home Assistant renames
+its tools, turning a light on keeps working without an add-on update.
+Opening covers still asks first.
+
+**New option: Lean tool set** (off by default). Gives the agent only the
+built-in tools a home assistant needs (22 instead of 49), so each request
+is shorter: faster, cheaper answers. Home Assistant's own tools are
+unaffected; switching it off restores everything on the next restart.
+
+**Set an API token if you haven't.** Without one the add-on's log says
+"Pairing: DISABLED (all requests accepted)": anything on Home Assistant's
+internal network can use the agent. Set `api_token` here, restart, and
+put the same value in the ZeroClaw Conversation integration's options
+(integration 0.3.0 or later).
+
 ## 0.2.2
 
 **Finishes the 0.2.1 fix.** 0.2.1 got Home Assistant's live context

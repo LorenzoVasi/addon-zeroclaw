@@ -28,6 +28,15 @@ configuration:
       "home_assistant" MCP server entry inside ZeroClaw so it can control
       Home Assistant. Leave empty to skip this and configure MCP by hand
       later from the ZeroClaw dashboard.
+  lean_tools:
+    name: Lean tool set for a home assistant
+    description: >-
+      Off by default. When on, the agent only gets the built-in tools a
+      home assistant needs (memory, files, reminders, the notify webhook,
+      weather, calculator, web search) instead of all ~50, so every
+      request carries a much shorter prompt: faster, cheaper answers.
+      Home Assistant's own tools are not affected. Turning it off again
+      restores the full set on the next restart.
   providers:
     name: Model providers
     description: >-

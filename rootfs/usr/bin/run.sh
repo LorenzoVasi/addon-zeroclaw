@@ -123,6 +123,7 @@ api_token="$(jq -r '.api_token // empty' "${OPTIONS_FILE}")"
 webhook_secret="$(jq -r '.webhook_secret // empty' "${OPTIONS_FILE}")"
 ha_url="$(jq -r '.home_assistant_url // empty' "${OPTIONS_FILE}")"
 ha_token="$(jq -r '.home_assistant_token // empty' "${OPTIONS_FILE}")"
+lean_tools="$(jq -r '.lean_tools // false' "${OPTIONS_FILE}")"
 
 # Diagnostic only — never logs the actual secret values, just whether they
 # were read as empty or not and the raw options.json keys, so a "pairing
@@ -407,6 +408,46 @@ fi
 
 nginx -t
 
+# ZeroClaw 0.8.6 refuses SQLite files (and their -wal/-shm) that are group-
+# or world-accessible, and a data directory others can write to ("Breaking
+# Changes" and "Known issues" in its release notes, #10835/#11803). Installs
+# from 0.8.5 or earlier have their databases at 0644 — verified by booting
+# 0.8.5 on a volume and upgrading it in place. That upgrade did start and
+# answer, but the refusal is documented for the memory store, which the
+# real agent uses and the boot test barely touches, so tighten them before
+# the daemon opens anything rather than find out on a live install.
+# Everything here runs as root, so owner-only costs nothing.
+if [ -d "${ZEROCLAW_HOME_DIR}/data" ]; then
+    find "${ZEROCLAW_HOME_DIR}/data" -type f \( -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' \) \
+        -exec chmod 600 {} +
+    find "${ZEROCLAW_HOME_DIR}" -type d -exec chmod go-w {} +
+fi
+
+# `lean_tools` option → ZeroClaw 0.8.6's `[tools].optional` selector. Its own
+# minimal set (`[]`: shell, file_*, *_search, memory_*, web_fetch,
+# git_operations) drops `cron_*` and `http_request`, which reminders, the
+# notify webhook and watches depend on (see the cron/http_request comment
+# further down), so the minimal set is extended with those plus the few
+# read-only helpers a household agent actually reaches for. Verified in a
+# 0.8.6 container: 49 built-in tools down to 22 with this list, the agent
+# still answering, and back to 49 once the option is switched off.
+# MCP tools (Home Assistant's) are not affected by this selector at all.
+#
+# A marker file records that *this* option set the value, so switching the
+# option off restores full (`["*"]`, ZeroClaw's default) without
+# overwriting a selection someone made by hand from the dashboard.
+LEAN_TOOLS='["cron_add","cron_list","cron_remove","cron_update","cron_run","cron_runs","http_request","weather","calculator","web_search_tool","send_message_to_peer"]'
+LEAN_TOOLS_MARKER="${DATA_DIR}/.lean-tools-applied"
+if [ "${lean_tools}" = "true" ]; then
+    zeroclaw config set --no-interactive tools.optional "${LEAN_TOOLS}" >/dev/null
+    touch "${LEAN_TOOLS_MARKER}"
+    echo "[zeroclaw-addon] Lean tool set enabled."
+elif [ -f "${LEAN_TOOLS_MARKER}" ]; then
+    zeroclaw config set --no-interactive tools.optional '["*"]' >/dev/null
+    rm -f "${LEAN_TOOLS_MARKER}"
+    echo "[zeroclaw-addon] Lean tool set disabled; full tool set restored."
+fi
+
 # Two long-lived processes, no s6-overlay (this is otherwise a
 # single-process wrapper, not worth the extra machinery): start ZeroClaw in
 # the background, run nginx in the foreground, and propagate a stop signal
@@ -498,10 +539,47 @@ ZC_AUTO_APPROVE_TOOLS='["cron_add","cron_list","cron_remove","cron_update","cron
 # registered by the `intent` component, as `intent__HassTurnOn` confirms.
 HA_TOOL_NEW_NAMES='{"HassBroadcast":["assist_satellite__HassBroadcast"],"HassLightSet":["light__HassLightSet"],"HassClimateSetTemperature":["climate__HassClimateSetTemperature"],"HassClimateGetTemperature":["climate__HassClimateGetTemperature"],"HassFanSetSpeed":["fan__HassFanSetSpeed"],"HassHumidifierSetpoint":["humidifier__HassHumidifierSetpoint"],"HassHumidifierMode":["humidifier__HassHumidifierMode"],"HassMediaPause":["media_player__HassMediaPause"],"HassMediaUnpause":["media_player__HassMediaUnpause"],"HassMediaNext":["media_player__HassMediaNext"],"HassMediaPrevious":["media_player__HassMediaPrevious"],"HassMediaPlayerMute":["media_player__HassMediaPlayerMute"],"HassMediaPlayerUnmute":["media_player__HassMediaPlayerUnmute"],"HassSetVolume":["media_player__HassSetVolume"],"HassSetVolumeRelative":["media_player__HassSetVolumeRelative"],"HassMediaSearchAndPlay":["media_player__HassMediaSearchAndPlay"],"HassListAddItem":["todo__HassListAddItem"],"HassListCompleteItem":["todo__HassListCompleteItem"],"HassListRemoveItem":["todo__HassListRemoveItem"],"HassShoppingListAddItem":["shopping_list__HassShoppingListAddItem"],"HassShoppingListCompleteItem":["shopping_list__HassShoppingListCompleteItem"],"HassShoppingListLastItems":["shopping_list__HassShoppingListLastItems"],"HassGetWeather":["weather__HassGetWeather"],"HassVacuumStart":["vacuum__HassVacuumStart"],"HassVacuumReturnToBase":["vacuum__HassVacuumReturnToBase"],"HassVacuumCleanArea":["vacuum__HassVacuumCleanArea"],"HassLawnMowerStartMowing":["lawn_mower__HassLawnMowerStartMowing"],"HassLawnMowerDock":["lawn_mower__HassLawnMowerDock"],"HassOpenCover":["cover__HassOpenCover"],"HassCloseCover":["cover__HassCloseCover"],"HassTurnOn":["intent__HassTurnOn"],"HassTurnOff":["intent__HassTurnOff"],"HassToggle":["intent__HassToggle"],"HassGetState":["intent__HassGetState"],"HassNevermind":["intent__HassNevermind"],"HassRespond":["intent__HassRespond"],"HassStartTimer":["intent__HassStartTimer"],"HassCancelTimer":["intent__HassCancelTimer"],"HassCancelAllTimers":["intent__HassCancelAllTimers"],"HassIncreaseTimer":["intent__HassIncreaseTimer"],"HassDecreaseTimer":["intent__HassDecreaseTimer"],"HassPauseTimer":["intent__HassPauseTimer"],"HassUnpauseTimer":["intent__HassUnpauseTimer"],"HassTimerStatus":["intent__HassTimerStatus"],"HassGetCurrentDate":["intent__HassGetCurrentDate"],"HassGetCurrentTime":["intent__HassGetCurrentTime"],"GetLiveContext":["homeassistant__GetLiveContext"],"GetDateTime":["llm__GetDateTime"],"todo_get_items":["todo__get_items"],"HassSetPosition":["intent__HassSetPosition","cover__HassSetPosition"],"HassStopMoving":["intent__HassStopMoving","cover__HassStopMoving"]}'
 ha_tool_variants() {
-    echo "$1" | jq -c --argjson names "${HA_TOOL_NEW_NAMES}"         'map(., (sub("^home_assistant__"; "") as $t | ($names[$t] // [])[] | "home_assistant__" + .)) | unique'
+    echo "$1" | jq -c --argjson names "${HA_TOOL_NEW_NAMES}" \
+        'map(., (sub("^home_assistant__"; "") as $t | ($names[$t] // [])[] | "home_assistant__" + .)) | unique'
 }
 HA_AUTO_APPROVE_TOOLS="$(ha_tool_variants "${HA_AUTO_APPROVE_TOOLS}")"
 HA_ALWAYS_ASK_TOOLS="$(ha_tool_variants "${HA_ALWAYS_ASK_TOOLS}")"
+
+# The map above is only a fallback. What Home Assistant actually offers is
+# read from its MCP server on every boot (`tools/list` — read-only, runs
+# nothing), and each live tool is matched by its *base* name, the part after
+# the last `__`: `home_assistant__<anything>__HassTurnOff` is approved because
+# `HassTurnOff` is in the list above, whatever prefix the next Home Assistant
+# release puts in front of it. Same for `always_ask`, so a renamed cover tool
+# stays gated. If Home Assistant can't be reached (still booting, wrong
+# token), only the static names are seeded, as before.
+ha_live_tools() {
+    curl -sf -m 15 -X POST "${ha_url%/}/api/mcp" \
+        -H "Authorization: Bearer ${ha_token}" \
+        -H "Content-Type: application/json" \
+        -H "Accept: application/json, text/event-stream" \
+        -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' 2>/dev/null \
+        | sed -n -e 's/^data: //' -e '/^{/p' \
+        | jq -c '[.result.tools[]?.name | "home_assistant__" + .]' 2>/dev/null
+}
+ha_live_matching() {
+    jq -cn --argjson want "$1" --argjson live "$2" \
+        '($want | map(split("__") | last)) as $bases
+         | [$live[] | select((split("__") | last) as $b | $bases | index($b))]'
+}
+
+if [ -n "${ha_url}" ] && [ -n "${ha_token}" ]; then
+    HA_LIVE_TOOLS="$(ha_live_tools || true)"
+    if [ -n "${HA_LIVE_TOOLS}" ] && [ "${HA_LIVE_TOOLS}" != "[]" ]; then
+        HA_AUTO_APPROVE_TOOLS="$(jq -cn --argjson a "${HA_AUTO_APPROVE_TOOLS}" \
+            --argjson b "$(ha_live_matching "${HA_AUTO_APPROVE_TOOLS}" "${HA_LIVE_TOOLS}")" '$a + $b | unique')"
+        HA_ALWAYS_ASK_TOOLS="$(jq -cn --argjson a "${HA_ALWAYS_ASK_TOOLS}" \
+            --argjson b "$(ha_live_matching "${HA_ALWAYS_ASK_TOOLS}" "${HA_LIVE_TOOLS}")" '$a + $b | unique')"
+        echo "[zeroclaw-addon] Read $(echo "${HA_LIVE_TOOLS}" | jq length) tool(s) from Home Assistant's MCP server."
+    else
+        echo "[zeroclaw-addon] WARNING: could not list Home Assistant's MCP tools; seeding known tool names only."
+    fi
+fi
 
 if [ -n "${ha_url}" ] && [ -n "${ha_token}" ]; then
     echo "[zeroclaw-addon] Waiting for ZeroClaw to come up for MCP bundle reconciliation..."

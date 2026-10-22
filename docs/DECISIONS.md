@@ -1367,6 +1367,67 @@ not knowing which one registers them. The `homeassistant__Hass*` entries
 0.2.1 already seeded match nothing and are left in place, inert —
 seeding is additive and never removes.
 
+## 0.3.0: ZeroClaw 0.8.6, live tool names, lean tool set (2026-10-22)
+
+**ZeroClaw 0.8.6, from the plain `v0.8.6` tag.** Its release notes say
+`dist-v0.8.6` won't be published (arm64 build out of memory) and that
+`v0.8.6` carries the same features; `docker manifest inspect` confirmed
+`v0.8.6` exists and `dist-v0.8.6` doesn't. The Dockerfile's three
+`COPY --from` paths are unchanged in it. Breaking changes in those notes
+checked against this add-on:
+
+- *Unsafe SQLite files are refused* (group/world-accessible). Booting
+  0.8.5 on a volume showed its databases at `0644`; upgrading that same
+  volume to 0.8.6 still started and answered, but the refusal is
+  documented for the memory store, which the real agent uses and the boot
+  test barely touches. `run.sh` now `chmod 600`s every `*.db*` under the
+  data dir and removes group/other write from its directories before the
+  daemon starts — root-only container, costs nothing.
+- *Group-writable data directory refused* (known issue, umask `0002`):
+  not this add-on's case — 0.8.5 left `755`/`700`.
+- *Browser automation now a separate opt-in*: `browser` in `auto_approve`
+  no longer implies it. Nothing here enables browser automation.
+- *Pairing codes longer / admin-gated*: the add-on pre-provisions a
+  static token and never reads a pairing code. Both e2e gateways (plain,
+  webhook secret) pass on 0.8.6.
+- *Approvals tighten* (`Always` no longer carries over): the integration
+  never sends `always`.
+
+Verified with the cross-repo e2e suite on 0.8.6 (35/35), and an in-place
+0.8.5 → 0.8.6 upgrade of one volume.
+
+**Live tool names.** The static old→new map from 0.2.2 is now only the
+fallback: `run.sh` calls Home Assistant's MCP `tools/list` (read-only) on
+boot and adds every live tool whose base name — after the last `__` — is
+in the auto-approve or always-ask list. A future renamed prefix is then
+picked up on the next boot instead of needing a release; a renamed cover
+tool stays gated. Tested inside the 0.8.6 image against the household's
+real Home Assistant: 20 tools read, all matched, covers still in
+`always_ask`. The response arrives as plain JSON or SSE `data:` lines
+depending on the client's `Accept`; both are parsed.
+
+**Lean tool set (option, off).** 0.8.6's `[tools].optional` selector:
+`[]` is its minimal set, but that keeps `shell`/`git_operations` and drops
+`cron_*` and `http_request`, which reminders, the notify webhook and
+watches need — so the option sets minimal plus those, weather,
+calculator, web search and `send_message_to_peer`. 49 built-in tools → 22
+in a 0.8.6 container, agent still answering; switching the option off
+restores `["*"]`, but only when a marker file shows this option was what
+set it, so a selection made by hand from the dashboard isn't overwritten.
+MCP tools are outside this selector.
+
+**Considered and not exposed:**
+
+- `effort_routing` (cheap model for simple turns, cloud for complex). Its
+  classifier is deterministic: under 50 bytes simple, over 200 complex,
+  in between decided by *English* reasoning keywords. For an Italian
+  household nearly every turn lands on the cheap model, including the
+  ones that need the good one — a silent quality drop. Also needs
+  `[[model_routes]]` with a model id per route, which the add-on's
+  provider options don't always carry. Worth revisiting if the classifier
+  becomes language-aware.
+- `single_tool_rounds`: no problem it solves has been seen here.
+
 ## Versioning and releases
 
 Adopted 2026-09-05, on request, after both repositories had accumulated

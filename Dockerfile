@@ -8,7 +8,13 @@
 # script inside it. Instead we lift the finished binary + web dashboard
 # assets out of it via multi-stage COPY into a normal Debian base that has
 # a shell, bump this ARG when ZeroClaw cuts a new release.
-ARG ZEROCLAW_IMAGE_TAG=dist-v0.8.5
+#
+# v0.8.6 is the plain `v0.8.6` tag, not `dist-v0.8.6`: the release notes
+# ("Known issues") say the dist image's arm64 build ran out of memory and
+# won't be published, and that `v0.8.6` carries the same features,
+# repackaged from the release archives, for amd64 and arm64. Go back to
+# `dist-` once it exists.
+ARG ZEROCLAW_IMAGE_TAG=v0.8.6
 
 FROM ghcr.io/zeroclaw-labs/zeroclaw:${ZEROCLAW_IMAGE_TAG} AS zeroclaw
 

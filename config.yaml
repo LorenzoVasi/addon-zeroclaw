@@ -1,6 +1,6 @@
 ---
 name: ZeroClaw
-version: "0.2.2"
+version: "0.3.0"
 slug: zeroclaw
 description: >-
   Self-hosted autonomous AI agent (ZeroClaw), pre-wired to control Home
@@ -26,6 +26,7 @@ options:
   webhook_secret: ""
   home_assistant_url: "http://homeassistant:8123"
   home_assistant_token: ""
+  lean_tools: false
   providers: []
 schema:
   log_level: list(trace|debug|info|warn|error)
@@ -33,6 +34,7 @@ schema:
   webhook_secret: password?
   home_assistant_url: url?
   home_assistant_token: password?
+  lean_tools: bool
   providers:
     - provider_type: list(anthropic|openai|openrouter|gemini|azure|ollama|groq|mistral|xai|deepseek|together|custom)
       alias: str
