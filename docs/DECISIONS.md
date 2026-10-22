@@ -1406,6 +1406,15 @@ real Home Assistant: 20 tools read, all matched, covers still in
 `always_ask`. The response arrives as plain JSON or SSE `data:` lines
 depending on the client's `Accept`; both are parsed.
 
+Also from the Home Assistant 2026.10 changelog: tools now carry metadata
+("Add tool metadata to the LLM API", #182614), surfaced over MCP as
+`annotations.readOnlyHint`. Every live tool with it is auto-approved
+(minus anything in `always_ask`): it can't change the house, and new
+read-only tools — calendar, KNX reads — then need no entry here. Plus the
+two new names in 2026.10: `HassClimateSetFanMode` (#181310) and the
+dedicated media tools `media_player__search_media` / `__play_media`
+(#183192, names read from `media_player/llm.py` at the 2026.10.2 tag).
+
 **Lean tool set (option, off).** 0.8.6's `[tools].optional` selector:
 `[]` is its minimal set, but that keeps `shell`/`git_operations` and drops
 `cron_*` and `http_request`, which reminders, the notify webhook and

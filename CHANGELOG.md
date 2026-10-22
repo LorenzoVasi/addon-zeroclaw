@@ -17,7 +17,10 @@ itself on every start.
 Home Assistant which tools it offers and approves them by name, whatever
 prefix Home Assistant puts in front. The next time Home Assistant renames
 its tools, turning a light on keeps working without an add-on update.
-Opening covers still asks first.
+Every tool Home Assistant marks as read-only (checking the state of the
+house, the date, lists, media search) is allowed too, and the new Home
+Assistant 2026.10 tools for playing music and setting the fan mode are
+included. Opening covers still asks first.
 
 **New option: Lean tool set** (off by default). Gives the agent only the
 built-in tools a home assistant needs (22 instead of 49), so each request
